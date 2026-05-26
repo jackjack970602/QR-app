@@ -11,7 +11,7 @@ struct ContentView: View {
     private enum ScanState: Equatable {
         case idle
         case recognized
-        case sheetVisible
+        case resultVisible
     }
 
     @State private var isDetected = false
@@ -22,10 +22,10 @@ struct ContentView: View {
     @State private var debugDetected = false
 #endif
     @State private var state: ScanState = .idle
-    @State private var sheetVisible = false
+    @State private var resultVisible = false
     @State private var scanningEnabled = true
     @State private var resetCounter = 0
-    @State private var pendingShowSheet = false
+    @State private var pendingShowResult = false
 
     private let cameraCornerRadius: CGFloat = 22
     private let cameraHeight: CGFloat = 680
@@ -60,9 +60,9 @@ struct ContentView: View {
                         quad: qrQuad,
                         debug: debugInfo,
                         onMaskBecameVisible: {
-                            if pendingShowSheet && !sheetVisible {
-                                pendingShowSheet = false
-                                showResultSheet()
+                            if pendingShowResult && !resultVisible {
+                                pendingShowResult = false
+                                showResultScreen()
                             }
                         }
                     )
@@ -84,6 +84,14 @@ struct ContentView: View {
                 }
                 .frame(width: proxy.size.width, height: cameraHeight)
                 .padding(.top, cameraTopOffset)
+
+                if resultVisible {
+                    ResultScreen {
+                        resetScanner()
+                    }
+                    .transition(.move(edge: .bottom))
+                    .zIndex(10)
+                }
             }
         }
 #if DEBUG
@@ -94,47 +102,43 @@ struct ContentView: View {
             guard let newValue, !newValue.isEmpty else { return }
             onQrRecognized(newValue)
         }
-        .sheet(isPresented: $sheetVisible) {
-            ResultSheet(code: scannedCode) {
-                resetScanner()
-            }
-            .presentationDetents([.height(200)])
-            .presentationDragIndicator(.visible)
-            .interactiveDismissDisabled(true)
-        }
     }
 
     private func onQrRecognized(_ data: String) {
         guard state == .idle else { return }
         state = .recognized
         disableScanning()
-        pendingShowSheet = true
+        pendingShowResult = true
         // Fallback in case mask callback doesn't fire.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
-            if self.pendingShowSheet && !self.sheetVisible {
-                self.pendingShowSheet = false
-                self.showResultSheet()
+            if self.pendingShowResult && !self.resultVisible {
+                self.pendingShowResult = false
+                self.showResultScreen()
             }
         }
     }
 
-    private func showResultSheet() {
-        guard !sheetVisible else { return }
-        sheetVisible = true
-        state = .sheetVisible
+    private func showResultScreen() {
+        guard !resultVisible else { return }
+        withAnimation(.easeInOut) {
+            resultVisible = true
+        }
+        state = .resultVisible
     }
 
-    private func hideResultSheet() {
-        sheetVisible = false
-        if state == .sheetVisible { state = .idle }
+    private func hideResultScreen() {
+        withAnimation(.easeInOut) {
+            resultVisible = false
+        }
+        if state == .resultVisible { state = .idle }
     }
 
     private func resetScanner() {
-        hideResultSheet()
+        hideResultScreen()
         scannedCode = nil
         isDetected = false
         qrQuad = nil
-        pendingShowSheet = false
+        pendingShowResult = false
         resetCounter += 1
         enableScanning()
         state = .idle
@@ -149,36 +153,19 @@ struct ContentView: View {
         .previewLayout(.fixed(width: 375, height: 812))
 }
 
-private struct ResultSheet: View {
-    let code: String?
+private struct ResultScreen: View {
     let onTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
-            Capsule()
-                .fill(Color.secondary.opacity(0.35))
-                .frame(width: 40, height: 5)
-                .padding(.top, 6)
-
-            Text("QR распознан")
-                .font(.headline)
-
-            if let code, !code.isEmpty {
-                Text(code)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-            }
-
-            Text("Нажмите, чтобы сканировать снова")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 0)
+        GeometryReader { proxy in
+            Image("screen-result")
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+                .ignoresSafeArea()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
     }
