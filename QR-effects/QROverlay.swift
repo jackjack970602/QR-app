@@ -118,7 +118,7 @@ struct QROverlay: View {
         }
 
         DispatchQueue.main.async {
-            withAnimation(.easeIn(duration: detectAnimationDuration)) {
+            withAnimation(.easeInOut(duration: detectAnimationDuration)) {
                 animationProgress = 1
                 currentScale = targetScale
             }
