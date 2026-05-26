@@ -108,19 +108,26 @@ struct QROverlay: View {
     private func animateDetectIn() {
         wasPresent = true
         isAnimatingDetect = true
-        animationProgress = 0
-        currentScale = 0.3
         targetScale = 1.0
-        maskOpacity = 1.0
 
-        withAnimation(.timingCurve(0.33, 1.0, 0.68, 1.0, duration: detectAnimationDuration)) {
-            animationProgress = 1
-            currentScale = targetScale
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            animationProgress = 0
+            currentScale = 0.3
+            maskOpacity = 1.0
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + detectAnimationDuration) {
-            isAnimatingDetect = false
-            onMaskBecameVisible?()
+        DispatchQueue.main.async {
+            withAnimation(.timingCurve(0.33, 1.0, 0.68, 1.0, duration: detectAnimationDuration)) {
+                animationProgress = 1
+                currentScale = targetScale
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + detectAnimationDuration) {
+                isAnimatingDetect = false
+                onMaskBecameVisible?()
+            }
         }
     }
 
