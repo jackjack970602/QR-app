@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var scanningEnabled = true
     @State private var resetCounter = 0
     @State private var pendingShowResult = false
+    @State private var resultShowFallbackWorkItem: DispatchWorkItem?
 
     private let cameraCornerRadius: CGFloat = 22
     private let cameraHeight: CGFloat = 680
@@ -62,11 +63,7 @@ struct ContentView: View {
                         onMaskBecameVisible: {
                             if pendingShowResult && !resultVisible {
                                 pendingShowResult = false
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    if state == .recognized && !resultVisible {
-                                        showResultScreen()
-                                    }
-                                }
+                                scheduleResultScreenAfterMask()
                             }
                         }
                     )
@@ -113,13 +110,16 @@ struct ContentView: View {
         state = .recognized
         disableScanning()
         pendingShowResult = true
-        // Fallback in case mask callback doesn't fire.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+
+        resultShowFallbackWorkItem?.cancel()
+        let fallback = DispatchWorkItem {
             if self.pendingShowResult && !self.resultVisible {
                 self.pendingShowResult = false
-                self.showResultScreen()
+                self.scheduleResultScreenAfterMask()
             }
         }
+        resultShowFallbackWorkItem = fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: fallback)
     }
 
     private func showResultScreen() {
@@ -128,6 +128,15 @@ struct ContentView: View {
             resultVisible = true
         }
         state = .resultVisible
+    }
+
+    private func scheduleResultScreenAfterMask() {
+        resultShowFallbackWorkItem?.cancel()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if state == .recognized && !resultVisible {
+                showResultScreen()
+            }
+        }
     }
 
     private func hideResultScreen() {
@@ -143,6 +152,8 @@ struct ContentView: View {
         isDetected = false
         qrQuad = nil
         pendingShowResult = false
+        resultShowFallbackWorkItem?.cancel()
+        resultShowFallbackWorkItem = nil
         resetCounter += 1
         enableScanning()
         state = .idle
