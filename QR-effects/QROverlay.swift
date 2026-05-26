@@ -31,7 +31,7 @@ struct QROverlay: View {
     @State private var maskOpacity: CGFloat = 0
     @State private var wasPresent = false
 
-    private let detectAnimationDuration = 0.7
+    private let detectAnimationDuration = 0.2
 
     var body: some View {
         GeometryReader { proxy in
@@ -118,7 +118,7 @@ struct QROverlay: View {
         }
 
         DispatchQueue.main.async {
-            withAnimation(.timingCurve(0.33, 1.0, 0.68, 1.0, duration: detectAnimationDuration)) {
+            withAnimation(.easeIn(duration: detectAnimationDuration)) {
                 animationProgress = 1
                 currentScale = targetScale
             }
