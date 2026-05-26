@@ -52,14 +52,13 @@ struct QROverlay: View {
                     in: CGRect(origin: .zero, size: proxy.size)
                 )
 
-                let animatedPoints = buildAnimatedPolygon(points: points, scale: currentScale)
                 let opacity = quad.opacity * maskOpacity
 
                 // Darken everything, cut out the QR polygon (even-odd fill).
-                QRMaskCutout(points: animatedPoints, cornerRadius: detectCornerRadius)
+                QRMaskCutout(points: points, cornerRadius: detectCornerRadius, scale: currentScale)
                     .fill(.black.opacity(0.45 * opacity), style: FillStyle(eoFill: true, antialiased: true))
 
-                RoundedQRQuadShape(points: animatedPoints, cornerRadius: detectCornerRadius)
+                RoundedQRQuadShape(points: points, cornerRadius: detectCornerRadius, scale: currentScale)
                     .fill(Color(red: 0.2588, green: 0.5451, blue: 0.9765).opacity(0.14 * opacity))
             }
 
@@ -199,12 +198,18 @@ struct QRDebugInfo: Equatable {
 private struct QRMaskCutout: Shape {
     let points: [CGPoint]
     let cornerRadius: CGFloat
+    var scale: CGFloat
+
+    var animatableData: CGFloat {
+        get { scale }
+        set { scale = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         var p = Path()
         p.addRect(rect)
         guard points.count == 4 else { return p }
-        p.addPath(RoundedQRQuadShape(points: points, cornerRadius: cornerRadius).path(in: rect))
+        p.addPath(RoundedQRQuadShape(points: points, cornerRadius: cornerRadius, scale: scale).path(in: rect))
         return p
     }
 }
@@ -212,9 +217,16 @@ private struct QRMaskCutout: Shape {
 private struct RoundedQRQuadShape: Shape {
     let points: [CGPoint]
     let cornerRadius: CGFloat
+    var scale: CGFloat
+
+    var animatableData: CGFloat {
+        get { scale }
+        set { scale = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         guard points.count == 4 else { return Path() }
+        let points = buildAnimatedPolygon(points: points, scale: scale)
         let r = max(0, cornerRadius)
         guard r > 0 else {
             var p = Path()
