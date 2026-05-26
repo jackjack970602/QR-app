@@ -31,7 +31,7 @@ struct QROverlay: View {
     @State private var maskOpacity: CGFloat = 0
     @State private var wasPresent = false
 
-    private let detectAnimationDuration = 0.3
+    private let detectAnimationDuration = 0.7
 
     var body: some View {
         GeometryReader { proxy in

@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     private enum ScanState: Equatable {
         case idle
+        case detecting
         case recognized
         case resultVisible
     }
@@ -61,8 +62,8 @@ struct ContentView: View {
                         quad: qrQuad,
                         debug: debugInfo,
                         onMaskBecameVisible: {
-                            if pendingShowResult && !resultVisible {
-                                pendingShowResult = false
+                            if state == .detecting || pendingShowResult {
+                                state = .recognized
                                 scheduleResultScreenAfterMask()
                             }
                         }
@@ -103,23 +104,35 @@ struct ContentView: View {
             guard let newValue, !newValue.isEmpty else { return }
             onQrRecognized(newValue)
         }
+        .onChange(of: qrQuad) { _, newValue in
+            guard newValue != nil else { return }
+            onQrDetected()
+        }
     }
 
-    private func onQrRecognized(_ data: String) {
+    private func onQrDetected() {
         guard state == .idle else { return }
-        state = .recognized
+        state = .detecting
         disableScanning()
         pendingShowResult = true
 
         resultShowFallbackWorkItem?.cancel()
         let fallback = DispatchWorkItem {
-            if self.pendingShowResult && !self.resultVisible {
-                self.pendingShowResult = false
+            if (self.state == .detecting || self.pendingShowResult) && !self.resultVisible {
+                self.state = .recognized
                 self.scheduleResultScreenAfterMask()
             }
         }
         resultShowFallbackWorkItem = fallback
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: fallback)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75, execute: fallback)
+    }
+
+    private func onQrRecognized(_ data: String) {
+        guard state == .idle else {
+            pendingShowResult = true
+            return
+        }
+        onQrDetected()
     }
 
     private func showResultScreen() {
@@ -132,6 +145,7 @@ struct ContentView: View {
 
     private func scheduleResultScreenAfterMask() {
         resultShowFallbackWorkItem?.cancel()
+        pendingShowResult = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             if state == .recognized && !resultVisible {
                 showResultScreen()
