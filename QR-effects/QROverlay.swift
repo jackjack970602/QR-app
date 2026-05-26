@@ -23,14 +23,20 @@ struct QROverlay: View {
     var detectCornerRadius: CGFloat = 12
     var onMaskBecameVisible: (() -> Void)? = nil
 
-    @State private var currentScale: CGFloat = 1.0
+    @State private var displayedQuad: QRQuad?
+    @State private var animationProgress: CGFloat = 0
+    @State private var currentScale: CGFloat = 0.3
+    @State private var targetScale: CGFloat = 1.0
+    @State private var isAnimatingDetect = false
+    @State private var maskOpacity: CGFloat = 0
     @State private var wasPresent = false
 
     var body: some View {
         GeometryReader { proxy in
-            let present = quad != nil && (quad?.confidence ?? 0) >= 0.35 && (quad?.opacity ?? 0) > 0.01
+            let present = isPresent(quad)
+            let renderQuad = quad ?? displayedQuad
 
-            if let quad, present {
+            if let quad = renderQuad, maskOpacity > 0.01 {
                 let rawPoints = [
                     quad.topLeft,
                     quad.topRight,
@@ -45,14 +51,14 @@ struct QROverlay: View {
                 )
 
                 let animatedPoints = buildAnimatedPolygon(points: points, scale: currentScale)
+                let opacity = quad.opacity * maskOpacity
 
                 // Darken everything, cut out the QR polygon (even-odd fill).
                 QRMaskCutout(points: animatedPoints, cornerRadius: detectCornerRadius)
-                    .fill(.black.opacity(0.45 * quad.opacity), style: FillStyle(eoFill: true, antialiased: true))
+                    .fill(.black.opacity(0.45 * opacity), style: FillStyle(eoFill: true, antialiased: true))
 
                 RoundedQRQuadShape(points: animatedPoints, cornerRadius: detectCornerRadius)
-                    .fill(Color(red: 0.2588, green: 0.5451, blue: 0.9765).opacity(0.14 * quad.opacity))
-                    .animation(.easeInOut(duration: 0.12), value: quad.opacity)
+                    .fill(Color(red: 0.2588, green: 0.5451, blue: 0.9765).opacity(0.14 * opacity))
             }
 
             if let debug {
@@ -75,24 +81,61 @@ struct QROverlay: View {
             }
         }
         .allowsHitTesting(false)
-        .onChange(of: (quad?.opacity ?? 0) > 0.01 && (quad?.confidence ?? 0) >= 0.35) { _, newValue in
+        .onAppear {
+            guard isPresent(quad), let quad else { return }
+            displayedQuad = quad
+            animateDetectIn()
+        }
+        .onChange(of: quad) { _, newQuad in
+            let newValue = isPresent(newQuad)
             if newValue && !wasPresent {
+                displayedQuad = newQuad
                 animateDetectIn()
-            } else if !newValue && wasPresent {
-                wasPresent = false
-                currentScale = 0.3
+            } else if newValue {
+                displayedQuad = newQuad
+            } else if wasPresent {
+                animateDetectOut()
             }
         }
     }
 
+    private func isPresent(_ quad: QRQuad?) -> Bool {
+        quad != nil && (quad?.confidence ?? 0) >= 0.35 && (quad?.opacity ?? 0) > 0.01
+    }
+
     private func animateDetectIn() {
         wasPresent = true
+        isAnimatingDetect = true
+        animationProgress = 0
         currentScale = 0.3
+        targetScale = 1.0
+        maskOpacity = 1.0
+
         withAnimation(.timingCurve(0.33, 1.0, 0.68, 1.0, duration: 0.26)) {
-            currentScale = 1.0
+            animationProgress = 1
+            currentScale = targetScale
         }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
+            isAnimatingDetect = false
             onMaskBecameVisible?()
+        }
+    }
+
+    private func animateDetectOut() {
+        wasPresent = false
+        isAnimatingDetect = false
+        withAnimation(.easeOut(duration: 0.18)) {
+            maskOpacity = 0
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            if !isPresent(quad) {
+                displayedQuad = nil
+                animationProgress = 0
+                currentScale = 0.3
+                targetScale = 1.0
+            }
         }
     }
 }
