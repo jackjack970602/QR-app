@@ -146,7 +146,7 @@ struct ContentView: View {
     private func scheduleResultScreenAfterMask() {
         resultShowFallbackWorkItem?.cancel()
         pendingShowResult = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             if state == .recognized && !resultVisible {
                 showResultScreen()
             }
