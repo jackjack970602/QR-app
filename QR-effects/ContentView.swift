@@ -62,7 +62,11 @@ struct ContentView: View {
                         onMaskBecameVisible: {
                             if pendingShowResult && !resultVisible {
                                 pendingShowResult = false
-                                showResultScreen()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    if state == .recognized && !resultVisible {
+                                        showResultScreen()
+                                    }
+                                }
                             }
                         }
                     )
